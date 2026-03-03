@@ -46,15 +46,14 @@ def create_app():
     import uuid
     
     def create_new_session(folder):
-        
         session_id = str(uuid.uuid4())
         path = os.path.join(folder, f"{session_id}.json")
-        
         session_data = {
+            "id": session_id,
             "title": "New Chat",
+            "pinned": False,
             "history": []
         }
-        
         with open(path, "w") as f:
             json.dump(session_data, f, indent=2)
         
@@ -70,11 +69,11 @@ def create_app():
 
     @app.route("/load_session/<session_id>", methods=["GET"])
     def load_existing_session(session_id):
-        session_data = load_session(app.config["SESSION_FOLDER"], session_id)
-        
-        if not session_data:
+        path = os.path.join(app.config["SESSION_FOLDER"], f"{session_id}.json")
+        if not os.path.exists(path):
             return jsonify({"error": "Session not found"}), 404
-        
+        with open(path, "r") as f:
+            session_data = json.load(f)
         return jsonify(session_data)
 
 
@@ -102,7 +101,7 @@ def create_app():
         
         sessions = []
         
-        for f in os.listdir(session_folder):
+        for f in sorted(os.listdir(session_folder), reverse=True):
             if f.endswith(".json"):
                 session_id = f.replace(".json", "")
                 data = load_session(session_folder, session_id)
@@ -186,7 +185,7 @@ def create_app():
         
         # If first user message → set session title
         if len(session_data["history"]) == 0:
-            session_data["title"] = user_query[:40]
+            session_data["title"] = user_query.strip()[:40]
             
         session_data["history"].append({"role": "user", "content": user_query})
         session_data["history"].append({
@@ -219,21 +218,20 @@ def create_app():
     def rename_session(session_id):
         data = request.get_json()
         new_title = data.get("title")
+        if not new_title or not new_title.strip():
+            return jsonify({"error": "Invalid title"}), 400
         path = os.path.join(app.config["SESSION_FOLDER"], f"{session_id}.json")
 
         if not os.path.exists(path):
             return jsonify({"error": "Not found"}), 404
         
         with open(path, "r") as f:
-            content = json.load(f)
-        
-        content_meta = {
-            "title": new_title,
-            "history": content
-        }
-        
+            session_data = json.load(f)
+            
+        session_data["title"] = new_title
+
         with open(path, "w") as f:
-            json.dump(content_meta, f, indent=2)
+            json.dump(session_data, f, indent=2)
         
         return jsonify({"status": "renamed"})
 
