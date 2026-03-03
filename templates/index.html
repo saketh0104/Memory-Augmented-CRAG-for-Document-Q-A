@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>Console</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/style.css') }}">
+</head>
+<body>
+
+<div class="app-container">
+
+    <div class="sidebar">
+        <h2>Console</h2>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <form action="/upload" method="post" enctype="multipart/form-data" id="upload-form">
+                <label class="upload-label">
+                    + Upload Document
+                    <input type="file" name="file" required>
+                </label>
+                <button type="submit">Upload</button>
+            </form>
+        </div>
+
+        <!-- Documents -->
+        <div class="section">
+            <h4>Documents</h4>
+            <ul id="document-list">
+                {% for doc in documents -%}
+                <li>{{ doc }}</li>
+                {%- endfor %}
+                {% if not documents -%}
+                <li>No documents uploaded</li>
+                {%- endif %}
+            </ul>
+        </div>
+        <!-- Sessions -->
+        <div class="section">
+            <h4>Sessions</h4>
+            <ul id="session-list">
+                {% for session in sessions %}
+                <li class="session-item" data-session="{{ session.id }}">
+                    <span class="session-title">{{ session.title }}</span>
+                    <div class="session-menu">
+                        <button class="menu-btn">⋮</button>
+                        <div class="dropdown">
+                            <button class="rename-session">Rename</button>
+                            <button class="pin-session">Pin</button>
+                            <button class="delete-session">Delete</button>
+                        </div>
+                    </div></li>
+                {% else %}
+                <li>No sessions yet</li>
+                {% endfor %}
+            </ul>
+            <button id="new-chat">+ New Chat</button>
+        </div>
+    </div>
+
+
+    <!-- ================= CHAT AREA ================= -->
+    <div class="chat-container">
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="message bot">
+                Welcome. Ask a document-based question.
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <textarea id="query-input"
+                      placeholder="Ask a document-specific question..."></textarea>
+            <button id="send-btn">Send</button>
+        </div>
+
+    </div>
+
+</div>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
