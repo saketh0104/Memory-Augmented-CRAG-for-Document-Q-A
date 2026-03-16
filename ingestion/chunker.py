@@ -1,4 +1,4 @@
-def chunk_text(text: str, chunk_size: int = 450, overlap: int = 80)
+def chunk_text(text: str, chunk_size: int = 450, overlap: int = 80):
     #Split text into overlapping chunks for enterprise documents.
     # Preserves local financial and governance context.
     words = text.split()
