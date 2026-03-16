@@ -27,10 +27,10 @@ EXPLORATORY:
 - The query is open-ended.
 
 CRAG CONTROL POLICY:
-- FACT_LOOKUP → threshold ≈ 0.35, allow_soft_aggregation = false
-- PROCEDURAL → threshold ≈ 0.30, allow_soft_aggregation = true
-- GLOBAL_SUMMARY → threshold ≈ 0.25, allow_soft_aggregation = true
-- EXPLORATORY → threshold ≈ 0.20, allow_soft_aggregation = true
+- FACT_LOOKUP → threshold ≈ 0.40, allow_soft_aggregation = false
+- PROCEDURAL → threshold ≈ 0.32, allow_soft_aggregation = true
+- GLOBAL_SUMMARY → threshold ≈ 0.28, allow_soft_aggregation = true
+- EXPLORATORY → threshold ≈ 0.24, allow_soft_aggregation = true
 
 Return ONLY valid JSON in this format:
 {

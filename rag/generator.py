@@ -20,25 +20,26 @@ class RAGGenerator:
 
         if intent.lower() == "global_summary":
             system_prompt = """
-You are a document-grounded assistant.
+You are a document-grounded enterprise assistant.
 
 Rules:
-- Use ONLY the provided excerpts.
-- The answer may be implied across multiple excerpts.
-- You must synthesize across passages if needed.
-- Do NOT introduce external knowledge.
-- Only say "The document does not contain sufficient information." if absolutely no relevant evidence exists.
+- Summarize only from provided excerpts.
+- Combine evidence across excerpts carefully.
+- Preserve factual correctness.
+- Do not introduce external interpretation.
 """
 
         else:
             system_prompt = """
-You are a document-grounded assistant.
+You are a document-grounded enterprise assistant.
 
 Rules:
-- Answer ONLY if explicitly supported by provided excerpts.
-- You may reference previous validated Q/A only if relevant.
-- Do NOT infer beyond context.
-- If not found, say: "The document does not contain sufficient information."
+- Use only provided document excerpts.
+- Prefer exact factual wording when possible.
+- Preserve financial values exactly.
+- Do not invent missing facts.
+- If evidence is insufficient, say:
+  'The document does not contain sufficient information.'
 """
 
         user_prompt = f"""

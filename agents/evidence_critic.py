@@ -20,20 +20,24 @@ class EvidenceQualityCritic:
         self.allow_soft_aggregation = allow_soft_aggregation
 
     def is_structural_noise(self, text: str) -> bool:
-            noise_keywords = [
-                "copyright",
-                "isbn",
-                "library of congress",
-                "all rights reserved",
-                "cover design",
-                "title page",
-                "published in",
-                "imprint of",
-                "lccn"
-            ]
-            
-            t = text.lower()
-            return any(k in t for k in noise_keywords)
+        noise_keywords = [
+            "table of contents",
+            "forward-looking statements",
+            "commission file number",
+            "exhibit index",
+            "signature",
+            "cusip",
+            "form 10-k",
+            "form 10-q",
+            "page ",
+            "item 1a",
+            "item 7a"
+        ]
+
+        t = text.lower()
+        if len(t.strip()) < 40:
+            return True
+        return any(k in t for k in noise_keywords)
 
     def evaluate(self, query: str, retrieved_chunks: list[dict]):
         """

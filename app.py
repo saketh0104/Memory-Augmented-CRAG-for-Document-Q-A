@@ -6,7 +6,7 @@ import os
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 import json
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, app, render_template, request, redirect, url_for, jsonify
 from dotenv import load_dotenv
 
 # ---- Project modules ----
@@ -172,30 +172,38 @@ def create_app():
     def query():
         session_id = request.form.get("session_id")
         user_query = request.form.get("query")
-        
+
         if not session_id:
             return jsonify({"error": "No session id"}), 400
-        
+
         session_data = load_session(app.config["SESSION_FOLDER"], session_id)
-        
+
         if session_data is None:
             return jsonify({"error": "Session not found"}), 404
 
         result = rag_pipeline.run(user_query)
-        
-        # If first user message → set session title
+
+        # Fix old malformed sessions
+        if not isinstance(session_data.get("history"), list):
+            session_data["history"] = []
+
+        # First query becomes title
         if len(session_data["history"]) == 0:
             session_data["title"] = user_query.strip()[:40]
-            
-        session_data["history"].append({"role": "user", "content": user_query})
+
+        session_data["history"].append({
+            "role": "user",
+            "content": user_query
+        })
+
         session_data["history"].append({
             "role": "assistant",
             "content": result["answer"],
             "citations": result["citations"]
         })
-        
+
         save_session(app.config["SESSION_FOLDER"], session_id, session_data)
-        
+
         return jsonify(result)
 
 

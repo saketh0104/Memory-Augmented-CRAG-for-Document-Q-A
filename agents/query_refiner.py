@@ -1,3 +1,3 @@
 class QueryRefiner:
     def refine(self, query: str) -> str:
-        return f"{query} with more specific details from the document"
+        return f"Find exact financial, governance, or operational details related to: {query}"
