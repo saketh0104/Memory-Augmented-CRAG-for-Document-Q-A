@@ -8,3 +8,5 @@ __pycache__/
 .vscode/
 data/sessions/
 vectorstore/chroma/
+evaluation/Sample Chunks/
+evaluation/test/
