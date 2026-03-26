@@ -19,7 +19,7 @@ class RAGPipeline:
         self.intent_router = LLMIntentRouter()
         self.top_k = top_k
 
-    def retrieve(self, query: str):
+    def retrieve(self, query: str, use_memory: bool = True):
 
         query_embedding = self.embedder.embed_query(query)
 
@@ -39,9 +39,11 @@ class RAGPipeline:
                 "chunk_id": meta.get("chunk_id", -1)
             })
 
-        # Inject ONLY validated evidence memory
-        _, evidence_mem = self.memory.retrieve_memory_context(query)
-        retrieved_chunks.extend(evidence_mem)
+        # Evaluation phase skips this to isolate retrieval performance, 
+        # but in real use we want to leverage memory
+        if use_memory:
+            _, evidence_mem = self.memory.retrieve_memory_context(query)
+            retrieved_chunks.extend(evidence_mem)
 
         return retrieved_chunks
 
