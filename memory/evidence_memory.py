@@ -17,6 +17,8 @@ class EvidenceMemory:
             )
 
     def retrieve(self, query, top_k=3):
+        if self.collection.count() == 0:
+            return []
         query_emb = self.embedder.embed_query(query)
         results = self.collection.query(
             query_embeddings=[query_emb],
@@ -35,3 +37,5 @@ class EvidenceMemory:
             })
 
         return chunks
+
+    

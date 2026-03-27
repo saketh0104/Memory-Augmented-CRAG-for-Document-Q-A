@@ -6,7 +6,7 @@ __pycache__/
 *.pyd
 .env.*
 .vscode/
-data/sessions/
+data/
 vectorstore/chroma/
 evaluation/sample_chunks/
 evaluation/test/

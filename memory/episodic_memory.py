@@ -17,11 +17,13 @@ class EpisodicMemory:
 
 
     def retrieve(self, query, top_k=2):
+        if self.collection.count() == 0:
+            return []
+
         query_emb = self.embedder.embed_query(query)
         results = self.collection.query(
-        query_embeddings=[query_emb],
-        n_results=top_k
+            query_embeddings=[query_emb],
+            n_results=top_k
         )
-        metadatas = results.get("metadatas", [[]])[0]
-        return metadatas  # This returns list of dicts
+        return results.get("metadatas", [[]])[0]
 

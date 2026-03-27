@@ -39,20 +39,12 @@ class RAGPipeline:
                 "chunk_id": meta.get("chunk_id", -1)
             })
 
-        # Evaluation phase skips this to isolate retrieval performance, 
-        # but in real use we want to leverage memory
-        if use_memory:
-            _, evidence_mem = self.memory.retrieve_memory_context(query)
-            retrieved_chunks.extend(evidence_mem)
-
         return retrieved_chunks
 
     def run(self, query: str):
-
         print("\n--- QUERY ---")
         print(query)
 
-       
         intent_config = self.intent_router.classify(query)
 
         intent = intent_config.get("intent", "FACT_LOOKUP").lower()
@@ -62,12 +54,16 @@ class RAGPipeline:
         self.critic.set_mode(threshold, allow_soft)
 
         
+        episodic_mem, evidence_mem = self.memory.retrieve_memory_context(query)
+
+        
         retrieved_chunks = self.retrieve(query)
+        retrieved_chunks.extend(evidence_mem)
 
         print("\n--- RETRIEVED CHUNKS ---")
         print(len(retrieved_chunks))
 
-        #CRAG
+        # CRAG
         accepted_chunks, needs_refinement = self.critic.evaluate(
             query, retrieved_chunks
         )
@@ -75,15 +71,15 @@ class RAGPipeline:
         print("\n--- ACCEPTED CHUNKS ---")
         print(len(accepted_chunks))
 
-        #Refinement loop
         if needs_refinement:
             refined_query = self.refiner.refine(query)
             retrieved_chunks = self.retrieve(refined_query)
+            retrieved_chunks.extend(evidence_mem)
+
             accepted_chunks, _ = self.critic.evaluate(
                 refined_query, retrieved_chunks
             )
 
-        #Fallback
         if not accepted_chunks:
             return {
                 "answer": "The document does not contain sufficient information to answer this query.",
@@ -91,9 +87,7 @@ class RAGPipeline:
                 "intent": intent
             }
 
-
-        episodic_mem, _ = self.memory.retrieve_memory_context(query)
-
+        
         answer = self.generator.generate_answer(
             query=query,
             retrieved_chunks=accepted_chunks,
