@@ -11,3 +11,4 @@ vectorstore/chroma/
 evaluation/sample_chunks/
 evaluation/test/
 evaluation/results/
+models/all-MiniLM-L6-v2/

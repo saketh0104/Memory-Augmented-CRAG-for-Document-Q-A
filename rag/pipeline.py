@@ -80,29 +80,22 @@ class RAGPipeline:
                 refined_query, retrieved_chunks
             )
 
-        if not accepted_chunks:
-            return {
-                "answer": "The document does not contain sufficient information to answer this query.",
-                "citations": [],
-                "intent": intent
-            }
+        # fallback to retrieved if CRAG rejects everything
+        final_chunks = accepted_chunks if accepted_chunks else retrieved_chunks
 
         
         answer = self.generator.generate_answer(
             query=query,
-            retrieved_chunks=accepted_chunks,
+            retrieved_chunks=final_chunks,
             intent=intent,
             episodic_memory=episodic_mem
         )
 
-        if (
-            "sufficient information" not in answer.lower()
-            and len(accepted_chunks) >= 2
-        ):
+        if len(accepted_chunks) >= 2:
             self.memory.store_interaction(query, answer, accepted_chunks)
 
         return {
             "answer": answer,
-            "citations": accepted_chunks,
+            "citations": final_chunks,
             "intent": intent
         }

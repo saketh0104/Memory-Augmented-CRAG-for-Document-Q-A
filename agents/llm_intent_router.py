@@ -8,38 +8,55 @@ class LLMIntentRouter:
         self.llm = OpenRouterLLM()
 
         self.system_prompt = """
-You are an intent classification agent for a document-grounded question answering system.
+You are an intent classification agent for a document-grounded RAG system.
 
-Your job is to classify a user query based on HOW the answer must be obtained from a document.
+Classify the query based on how evidence should be retrieved from enterprise documents.
 
-IMPORTANT DEFINITIONS:
+Choose exactly one intent:
 
-FACT_LOOKUP:
-- The query asks for a single, explicit, localized fact.
+FACT_LOOKUP
+Use for explicit facts such as values, names, dates, counts, percentages, or direct statements usually found in one localized chunk.
 
-GLOBAL_SUMMARY:
-- The query asks for the overall purpose, aim, mission, or theme.
+Policy:
+threshold = 0.30
+allow_soft_aggregation = false
 
-PROCEDURAL:
-- The query asks for steps or methods.
 
-EXPLORATORY:
-- The query is open-ended.
+GLOBAL_SUMMARY
+Use for broad summaries, business overviews, company purpose, strategy, or themes requiring multiple chunks.
 
-CRAG CONTROL POLICY:
-- FACT_LOOKUP → threshold ≈ 0.40, allow_soft_aggregation = false
-- PROCEDURAL → threshold ≈ 0.32, allow_soft_aggregation = true
-- GLOBAL_SUMMARY → threshold ≈ 0.28, allow_soft_aggregation = true
-- EXPLORATORY → threshold ≈ 0.24, allow_soft_aggregation = true
+Policy:
+threshold = 0.20
+allow_soft_aggregation = true
 
-Return ONLY valid JSON in this format:
+
+PROCEDURAL
+Use for processes, workflows, methods, steps, or how something is performed.
+
+Policy:
+threshold = 0.25
+allow_soft_aggregation = true
+
+
+EXPLORATORY
+Use for open-ended reasoning, causes, impacts, risks, comparisons, trends, or interpretive questions.
+
+Policy:
+threshold = 0.15
+allow_soft_aggregation = true
+
+
+Return ONLY valid JSON:
+
 {
   "intent": "...",
   "threshold": number,
-  "allow_soft_aggregation": true | false
+  "allow_soft_aggregation": true
 }
 
-Do not explain.
+No explanation.
+No markdown.
+No extra text.
 """
 
     def classify(self, query: str) -> dict:
@@ -52,7 +69,6 @@ Do not explain.
         print(response)
 
         try:
-            # 🔥 Extract first JSON object safely
             match = re.search(r"\{.*\}", response, re.DOTALL)
             if match:
                 return json.loads(match.group())
@@ -60,9 +76,8 @@ Do not explain.
                 raise ValueError("No JSON found")
 
         except Exception:
-            # Ultra-safe fallback
             return {
                 "intent": "FACT_LOOKUP",
-                "threshold": 0.35,
+                "threshold": 0.30,
                 "allow_soft_aggregation": False
             }
