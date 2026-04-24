@@ -1,147 +1,89 @@
-#Memory-Augmented Corrective Agentic RAG for Reliable Context-Aware Document Question Answering
+# Memory-Augmented Corrective RAG for Enterprise Document Question Answering
 
-A research-oriented implementation of a Memory-Augmented Corrective Retrieval-Augmented Generation (RAG) system designed for reliable enterprise document analysis and decision support.
+An intelligent Retrieval-Augmented Generation (RAG) system designed for enterprise-scale document understanding using adaptive retrieval, corrective evidence filtering, memory modules, and grounded answer generation.
 
-This system extends traditional RAG by integrating:
-Intent-aware query routing
-Corrective Retrieval (CRAG)
-Persistent episodic and evidence memory
-Faithfulness validation
-Session-based interaction management
+---
 
-🚀 Overview
-Organizations rely on large collections of unstructured documents such as:
-Policies
-Financial reports
-Governance disclosures
-Operational manuals
+## Overview
 
-Traditional RAG systems often retrieve partially relevant context and may generate unsupported responses.
+Large enterprise organizations manage vast collections of reports, filings, governance documents, policies, and operational records. Traditional search systems often fail to retrieve the most relevant evidence, while standard LLM systems may hallucinate unsupported answers.
 
-This project introduces:
-Adaptive retrieval thresholding
-Evidence validation before generation
-Corrective re-retrieval via query refinement
-Memory-augmented response consistency
-Citation-supported grounded answers
+This project introduces a **Memory-Augmented Corrective RAG (CRAG)** pipeline that improves document-grounded question answering through:
 
-The system returns:
-Final Answer
-Citations (source file + chunk_id)
-Intent classification
-Confidence-based gating
+- Semantic retrieval using embeddings + vector database
+- Intent-aware query routing
+- Evidence quality filtering
+- Query refinement for failed retrievals
+- Episodic and evidence memory
+- Grounded response generation with citations
 
-🧠 Core Architecture
+The system is built for high-value enterprise use cases such as:
 
-The system consists of:
-Document Ingestion Pipeline
-Embedding & Vector Storage (ChromaDB)
-Agentic Retrieval
-Evidence Quality Critic (CRAG)
-Query Refinement
-Memory-Augmented Generator
-Faithfulness Validation
-Persistent Session Management
+- Financial report analysis
+- Board governance queries
+- Policy understanding
+- Internal knowledge retrieval
+- Decision support systems
 
-📂 Project Structure
-memo_rag/
-│
-├── ingestion/        # Document loading & preprocessing
-├── embeddings/       # Embedding model wrapper
-├── vectorstore/      # ChromaDB integration
-├── agents/           # Retrieval & corrective agents
-├── rag/              # End-to-end pipeline
-├── memory/           # Episodic & evidence memory
-├── evaluation/       # Retrieval & faithfulness metrics
-├── templates/        # UI
-├── static/           # CSS & JS
-├── data/             # Raw & processed documents
-└── scripts/          # Utility scripts
+---
 
+## Key Features
 
-🔄 Retrieval Workflow
-User submits query
-Intent Router classifies query type
-Adaptive threshold configuration applied
-Semantic retrieval from vector database
-CRAG evaluates evidence quality
-If needed → Query refinement and re-retrieval
-Generator produces grounded response
-Faithfulness validator checks citation support
-Memory updated (if high confidence)
-Response returned with citations
+### Semantic Retrieval Engine
+Uses Sentence Transformers to embed user queries and document chunks for dense semantic search.
 
-📊 Evaluation Design (In Progress)
-Planned evaluation includes:
-Recall@k
-MRR
-Faithfulness rate
-Intent classification accuracy
-Abstention accuracy (unanswerable detection)
-Ablation: Vanilla RAG vs Corrective Memory-Augmented RAG
-Dataset source: Public enterprise documents (e.g., SEC filings)
+### Corrective Retrieval (CRAG)
+Low-quality evidence is filtered using an evidence critic. If retrieval quality is poor, the system automatically refines the query and retries.
 
-🖥️ Web Interface Features
-Document upload
-Session-based chat
-Rename / delete sessions
-Citation display
-Persistent session history
+### Memory-Augmented Reasoning
+Supports:
 
-⚙️ Installation
+- Episodic memory (past interactions)
+- Validated evidence memory
 
-Clone the repository:
+to improve contextual continuity.
 
-git clone https://github.com/yourusername/Memory-Augmented-CRAG-for-Document-Q-A.git
-cd Memory-Augmented-CRAG-for-Document-Q-A
+### Intent-Aware Pipeline
+Different query types trigger different answering strategies:
 
-Create virtual environment:
+- FACT_LOOKUP
+- GLOBAL_SUMMARY
+- PROCEDURAL
+- EXPLORATORY
 
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+### Grounded Answer Generation
+Answers are generated only from retrieved evidence and shown with chunk citations.
 
-Install dependencies:
+---
 
-pip install -r requirements.txt
+## System Architecture
+<img width="15360" height="11520" alt="Architecture_8x" src="https://github.com/user-attachments/assets/2bf92aee-0ebc-48d1-a5d3-598bea2b99f3" />
+---
 
-Run the application:
+## End-to-End Flow
 
-python app.py
-🧪 Current Status
+```text
+User Query
+   ↓
+Intent Router
+   ↓
+Semantic Retriever (ChromaDB)
+   ↓
+Evidence Critic
+   ↓
+Query Refinement (if needed)
+   ↓
+Memory Injection
+   ↓
+LLM Answer Generator
+   ↓
+Grounded Response + Citations
+```
 
-This is an active research implementation.
-Core components implemented:
+## Results:
 
-Agentic CRAG pipeline
+<img width="1920" height="1080" alt="Screenshot 2026-03-27 141459" src="https://github.com/user-attachments/assets/68739cd7-4889-4918-b73f-03f762b05a0b" />
 
-Persistent vector store
+<img width="1920" height="1080" alt="Screenshot 2026-03-27 141557" src="https://github.com/user-attachments/assets/bd194c5e-fa35-43b4-b60a-a66abb21205e" />
 
-Memory modules
-
-Session management
-
-Ongoing work:
-
-Evaluation framework completion
-
-Ablation experiments
-
-Confidence score exposure in UI
-
-Dataset benchmarking
-
-📌 Research Focus
-
-This project investigates:
-
-Limitations of traditional RAG systems
-
-Adaptive retrieval strategies
-
-Memory-augmented response generation
-
-Reliable citation-grounded document QA
-
-📜 License
-
-For academic and research use.
+<img width="1920" height="1080" alt="Screenshot 2026-03-16 154024" src="https://github.com/user-attachments/assets/415a5cf0-609b-4cce-af4f-98d3d734be0d" />
