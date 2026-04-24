@@ -84,6 +84,5 @@ Grounded Response + Citations
 
 <img width="1920" height="1080" alt="Screenshot 2026-03-27 141459" src="https://github.com/user-attachments/assets/68739cd7-4889-4918-b73f-03f762b05a0b" />
 
+---
 <img width="1920" height="1080" alt="Screenshot 2026-03-27 141557" src="https://github.com/user-attachments/assets/bd194c5e-fa35-43b4-b60a-a66abb21205e" />
-
-<img width="1920" height="1080" alt="Screenshot 2026-03-16 154024" src="https://github.com/user-attachments/assets/415a5cf0-609b-4cce-af4f-98d3d734be0d" />
