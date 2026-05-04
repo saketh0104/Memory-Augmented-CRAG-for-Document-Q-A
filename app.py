@@ -1,10 +1,4 @@
-# ---- Suppress warnings early ----
-from config import suppress_warnings
-suppress_warnings()
-
 import os
-os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
-
 import json
 from flask import Flask, app, render_template, request, redirect, url_for, jsonify
 from dotenv import load_dotenv
@@ -35,7 +29,7 @@ def create_app():
     # ---------------- INIT CORE COMPONENTS ----------------
     embedder = None
     vector_db = ChromaStore()
-    rag_pipeline = RAGPipeline(top_k=10)
+    rag_pipeline = RAGPipeline(vector_db=vector_db, top_k=10)
 
 
     SESSION_FOLDER = "data/sessions"
@@ -136,7 +130,7 @@ def create_app():
         # -------- INGESTION PIPELINE --------
         raw_text = load_document(file_path)
         cleaned_text = clean_text(raw_text)
-        chunks = chunk_text(cleaned_text)
+        chunks = chunk_text(cleaned_text, rag_pipeline.embedder)
         print("Number of chunks:", len(chunks))
         # Create required directories
         os.makedirs("data/processed", exist_ok=True)
@@ -158,6 +152,10 @@ def create_app():
             metadatas=metadata,
             ids=ids
         )
+
+        # -------- BUILD BM25 INDEX --------
+        documents, metadatas = vector_db.get_all_documents()
+        rag_pipeline.bm25.build_index(documents, metadatas)
 
         print("Documents added successfully.")
 

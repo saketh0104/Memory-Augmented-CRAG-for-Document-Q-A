@@ -5,22 +5,22 @@ from agents.evidence_critic import EvidenceQualityCritic
 from agents.query_refiner import QueryRefiner
 from agents.llm_intent_router import LLMIntentRouter
 from memory.memory_manager import MemoryManager
-
+from retrievers.bm25_retriever import BM25Retriever
 
 class RAGPipeline:
-    def __init__(self, top_k: int = 10):
+    def __init__(self, vector_db, top_k: int = 10):
         self.embedder = Embedder()
-        self.vector_db = ChromaStore()
+        self.vector_db = vector_db
         self.generator = RAGGenerator()
         self.memory = MemoryManager(self.vector_db, self.embedder)
-
+        self.bm25 = BM25Retriever()
         self.critic = EvidenceQualityCritic()
         self.refiner = QueryRefiner()
         self.intent_router = LLMIntentRouter()
         self.top_k = top_k
 
     def retrieve(self, query: str, use_memory: bool = True):
-
+        # -------- Semantic Retrieval --------
         query_embedding = self.embedder.embed_query(query)
 
         results = self.vector_db.query_documents(
@@ -28,18 +28,65 @@ class RAGPipeline:
             top_k=self.top_k
         )
 
-        documents = results.get("documents", [[]])[0]
-        metadatas = results.get("metadatas", [[]])[0]
+        semantic_docs = results.get("documents", [[]])[0]
+        semantic_meta = results.get("metadatas", [[]])[0]
 
-        retrieved_chunks = []
-        for text, meta in zip(documents, metadatas):
-            retrieved_chunks.append({
+        semantic_chunks = []
+        for text, meta in zip(semantic_docs, semantic_meta):
+            semantic_chunks.append({
                 "text": text,
                 "source_file": meta.get("source_file", "unknown"),
-                "chunk_id": meta.get("chunk_id", -1)
+                "chunk_id": meta.get("chunk_id", -1),
+                "semantic_score": 1.0  # placeholder (Chroma doesn’t expose raw score easily)
             })
 
-        return retrieved_chunks
+        # -------- BM25 Retrieval --------
+        bm25_chunks = self.bm25.search(query, top_k=self.top_k)
+
+        # -------- Fusion --------
+        fused = {}
+
+        # Add semantic
+        for chunk in semantic_chunks:
+            key = (chunk["source_file"], chunk["chunk_id"])
+            fused[key] = {
+                **chunk,
+                "semantic_score": 1.0,
+                "bm25_score": 0.0
+            }
+
+        # Add BM25
+        for chunk in bm25_chunks:
+            key = (chunk["source_file"], chunk["chunk_id"])
+            if key in fused:
+                fused[key]["bm25_score"] = chunk["bm25_score"]
+            else:
+                fused[key] = {
+                    **chunk,
+                    "semantic_score": 0.0
+                }
+
+        # -------- Normalize Scores --------
+        max_bm25 = max([c["bm25_score"] for c in fused.values()] or [1])
+
+        for c in fused.values():
+            c["bm25_score"] /= max_bm25
+
+        # -------- Final Scoring --------
+        for c in fused.values():
+            c["final_score"] = (
+                0.7 * c["semantic_score"] +
+                0.3 * c["bm25_score"]
+            )
+
+        # -------- Sort --------
+        ranked = sorted(
+            fused.values(),
+            key=lambda x: x["final_score"],
+            reverse=True
+        )
+
+        return ranked[:self.top_k]
 
     def run(self, query: str):
         print("\n--- QUERY ---")

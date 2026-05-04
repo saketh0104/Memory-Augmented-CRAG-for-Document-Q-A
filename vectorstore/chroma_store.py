@@ -41,3 +41,19 @@ class ChromaStore:
             query_embeddings=[query_embedding],
             n_results=top_k
         )
+    
+    def get_all_documents(self):
+        results = self.doc_collection.get(
+            include=["documents", "metadatas"]
+        )
+
+        documents = results.get("documents", [])
+        metadatas = results.get("metadatas", [])
+
+        # flatten if nested
+        if len(documents) > 0 and isinstance(documents[0], list):
+            documents = documents[0]
+        if len(metadatas) > 0 and isinstance(metadatas[0], list):
+            metadatas = metadatas[0]
+
+        return documents, metadatas
