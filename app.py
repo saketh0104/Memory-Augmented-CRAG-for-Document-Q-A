@@ -31,12 +31,6 @@ def create_app():
     vector_db = ChromaStore()
     rag_pipeline = RAGPipeline(vector_db=vector_db, top_k=10)
 
-    # 🔥 BUILD BM25 AT STARTUP (CRITICAL)
-    documents, metadatas = vector_db.get_all_documents()
-    if documents:
-        rag_pipeline.bm25.build_index(documents, metadatas)
-        print("[BM25] Loaded on startup.")
-
     # ---------------- SESSION UTILS ----------------
 
     def create_new_session():
@@ -136,7 +130,7 @@ def create_app():
             ids=ids
         )
 
-        # 🔥 UPDATE BM25 INDEX
+        #UPDATE BM25 INDEX
         documents, metadatas = vector_db.get_all_documents()
         rag_pipeline.bm25.build_index(documents, metadatas)
 
