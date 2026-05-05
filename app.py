@@ -141,7 +141,10 @@ def create_app():
         with open(f"data/metadata/{file.filename}.json", "w") as f:
             json.dump(metadata, f, indent=2)
 
-        return redirect(url_for("index"))
+        return jsonify({
+            "status": "uploaded",
+            "message": "Document indexed successfully"
+        })
 
     # ---------------- QUERY ----------------
 

@@ -4,25 +4,7 @@ const queryInput = document.getElementById("query-input");
 
 let activeSession = null;
 
-document.querySelectorAll(".session-item").forEach(item => {
-    item.addEventListener("click", async (e) => {
-
-        // Prevent session switch when clicking menu
-        if (e.target.closest(".session-menu")) return;
-
-        const sessionId = item.dataset.session;
-        if (!sessionId) return;
-
-        activeSession = sessionId;
-
-        // Highlight active
-        document.querySelectorAll(".session-item")
-            .forEach(el => el.classList.remove("active"));
-        item.classList.add("active");
-
-        await loadSession(sessionId);
-    });
-});
+/* ---------------- SESSION LOAD ---------------- */
 
 async function loadSession(sessionId) {
     const response = await fetch(`/load_session/${sessionId}`);
@@ -49,9 +31,34 @@ async function loadSession(sessionId) {
             renderBotMessage(msg.content, msg.citations);
         }
     });
+
+    localStorage.setItem("activeSession", sessionId);
 }
 
+/* ---------------- SESSION CLICK ---------------- */
 
+function attachSessionClickHandlers() {
+    document.querySelectorAll(".session-item").forEach(item => {
+        item.onclick = async (e) => {
+
+            if (e.target.closest(".session-menu")) return;
+
+            const sessionId = item.dataset.session;
+            if (!sessionId) return;
+
+            activeSession = sessionId;
+
+            document.querySelectorAll(".session-item")
+                .forEach(el => el.classList.remove("active"));
+
+            item.classList.add("active");
+
+            await loadSession(sessionId);
+        };
+    });
+}
+
+/* ---------------- NEW SESSION ---------------- */
 
 document.getElementById("new-chat").addEventListener("click", async () => {
 
@@ -63,10 +70,26 @@ document.getElementById("new-chat").addEventListener("click", async () => {
     chatMessages.innerHTML = "";
     addMessage("New session started.", "bot");
 
-    location.reload(); // reload sidebar
+    // add to sidebar dynamically
+    const sessionList = document.querySelector(".session-list");
+
+    const li = document.createElement("li");
+    li.className = "session-item active";
+    li.dataset.session = activeSession;
+    li.innerHTML = `<span>New Chat</span>`;
+
+    // remove old active
+    document.querySelectorAll(".session-item")
+        .forEach(el => el.classList.remove("active"));
+
+    sessionList.prepend(li);
+
+    attachSessionClickHandlers();
+
+    localStorage.setItem("activeSession", activeSession);
 });
 
-
+/* ---------------- QUERY ---------------- */
 
 sendBtn.addEventListener("click", async () => {
 
@@ -93,10 +116,11 @@ sendBtn.addEventListener("click", async () => {
     const data = await response.json();
 
     loadingMsg.remove();
+
     renderBotMessage(data.answer, data.citations);
 });
 
-
+/* ---------------- MESSAGE HELPERS ---------------- */
 
 function addMessage(content, type) {
     const msg = document.createElement("div");
@@ -117,8 +141,7 @@ function renderBotMessage(answer, citations) {
     botMsg.appendChild(answerDiv);
 
     if (citations && citations.length > 0) {
-        const citationBlock = renderCitations(citations);
-        botMsg.appendChild(citationBlock);
+        botMsg.appendChild(renderCitations(citations));
     }
 
     chatMessages.appendChild(botMsg);
@@ -126,8 +149,6 @@ function renderBotMessage(answer, citations) {
 }
 
 function renderCitations(citations) {
-    if (!citations || citations.length === 0) return null;
-
     const wrapper = document.createElement("div");
     wrapper.className = "citations";
 
@@ -147,36 +168,32 @@ function renderCitations(citations) {
     return wrapper;
 }
 
-
+/* ---------------- DELETE / RENAME ---------------- */
 
 document.addEventListener("click", function (e) {
 
-    // Toggle dropdown
-    if (e.target.classList.contains("menu-btn")) {
-        const dropdown = e.target.nextElementSibling;
-
-        document.querySelectorAll(".dropdown")
-            .forEach(d => d.style.display = "none");
-
-        dropdown.style.display =
-            dropdown.style.display === "flex" ? "none" : "flex";
-
-        return;
-    }
-
-    // Delete session
+    // delete
     if (e.target.classList.contains("delete-session")) {
         const li = e.target.closest(".session-item");
         const sessionId = li.dataset.session;
 
         fetch(`/delete_session/${sessionId}`, { method: "POST" })
-            .then(() => location.reload());
+            .then(() => {
+                li.remove();
+
+                if (activeSession === sessionId) {
+                    activeSession = null;
+                    chatMessages.innerHTML = "";
+                    addMessage("Session deleted. Start a new chat.", "bot");
+                }
+            });
     }
 
-    // Rename session
+    // rename
     if (e.target.classList.contains("rename-session")) {
         const li = e.target.closest(".session-item");
         const sessionId = li.dataset.session;
+
         const newName = prompt("Enter new session name:");
         if (!newName) return;
 
@@ -184,25 +201,49 @@ document.addEventListener("click", function (e) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ title: newName })
-        }).then(() => location.reload());
-    }
-
-    // Close dropdown if clicking outside
-    if (!e.target.closest(".session-menu")) {
-        document.querySelectorAll(".dropdown")
-            .forEach(d => d.style.display = "none");
+        }).then(() => {
+            li.querySelector("span").textContent = newName;
+        });
     }
 });
 
+/* ---------------- UPLOAD (NO RELOAD) ---------------- */
 
+document.getElementById("upload-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+
+    const response = await fetch("/upload", {
+        method: "POST",
+        body: formData
+    });
+
+    const data = await response.json();
+
+    console.log("[UPLOAD]", data);
+
+    addMessage("Document uploaded and indexed.", "bot");
+});
+
+/* ---------------- INIT ---------------- */
 
 window.addEventListener("load", async () => {
 
-    const existingSessions = document.querySelectorAll(".session-item");
+    attachSessionClickHandlers();
 
-    if (existingSessions.length > 0) {
-        // Auto-select first session
-        existingSessions[0].click();
+    const saved = localStorage.getItem("activeSession");
+
+    if (saved) {
+        activeSession = saved;
+        await loadSession(saved);
+        return;
+    }
+
+    const sessions = document.querySelectorAll(".session-item");
+
+    if (sessions.length > 0) {
+        sessions[0].click();
     } else {
         const response = await fetch("/new_session", { method: "POST" });
         const data = await response.json();
