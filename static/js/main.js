@@ -104,7 +104,7 @@ sendBtn.addEventListener("click", async () => {
     loadingMsg.innerHTML = `<span class="typing-dots">Thinking...</span>`;
     chatMessages.appendChild(loadingMsg);
 
-    const response = await fetch("/query", {
+    let response = await fetch("/query", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -113,7 +113,31 @@ sendBtn.addEventListener("click", async () => {
         })
     });
 
-    const data = await response.json();
+    let data = await response.json();
+
+    //HANDLE SESSION LOSS HERE
+    if (data.error === "Session not found") {
+
+        console.warn("[Session Lost] Creating new session...");
+
+        const res = await fetch("/new_session", { method: "POST" });
+        const newSession = await res.json();
+
+        activeSession = newSession.session_id;
+        localStorage.setItem("activeSession", activeSession);
+
+        // 🔁 RETRY QUERY with new session
+        response = await fetch("/query", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                query,
+                session_id: activeSession
+            })
+        });
+
+        data = await response.json();
+    }
 
     loadingMsg.remove();
 
@@ -230,23 +254,28 @@ document.getElementById("upload-form")?.addEventListener("submit", async (e) => 
 
 window.addEventListener("load", async () => {
 
-    attachSessionClickHandlers();
-
     const saved = localStorage.getItem("activeSession");
 
     if (saved) {
-        activeSession = saved;
-        await loadSession(saved);
-        return;
+        const res = await fetch(`/load_session/${saved}`);
+        const data = await res.json();
+
+        if (!data.error) {
+            activeSession = saved;
+            await loadSession(saved);
+            return;
+        }
+
+        //session invalid → clear it
+        localStorage.removeItem("activeSession");
     }
 
-    const sessions = document.querySelectorAll(".session-item");
+    // fallback → create new session
+    const response = await fetch("/new_session", { method: "POST" });
+    const newSession = await response.json();
 
-    if (sessions.length > 0) {
-        sessions[0].click();
-    } else {
-        const response = await fetch("/new_session", { method: "POST" });
-        const data = await response.json();
-        activeSession = data.session_id;
-    }
+    activeSession = newSession.session_id;
+    localStorage.setItem("activeSession", activeSession);
+
+    addMessage("New session started.", "bot");
 });

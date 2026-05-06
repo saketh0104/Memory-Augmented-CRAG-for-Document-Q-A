@@ -1,5 +1,6 @@
 import os
 import json
+from os import path
 import uuid
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from dotenv import load_dotenv
@@ -20,8 +21,16 @@ def create_app():
     app = Flask(__name__)
 
     # ---------------- CONFIG ----------------
-    app.config["UPLOAD_FOLDER"] = "data/raw"
-    app.config["SESSION_FOLDER"] = "data/sessions"
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, "data", "raw")
+    app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+    SESSION_FOLDER = os.path.join(BASE_DIR, "data", "sessions")
+    app.config["SESSION_FOLDER"] = SESSION_FOLDER
+    os.makedirs(SESSION_FOLDER, exist_ok=True)
+
     app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
@@ -30,6 +39,14 @@ def create_app():
     # ---------------- INIT CORE ----------------
     vector_db = ChromaStore()
     rag_pipeline = RAGPipeline(vector_db=vector_db, top_k=10)
+
+    # -------- BUILD BM25 ON STARTUP --------
+    documents, metadatas = vector_db.get_all_documents()
+    if documents:
+        rag_pipeline.bm25.build_index(documents, metadatas)
+        print(f"[BM25] Loaded {len(documents)} documents on startup.")
+    else:
+        print("[BM25] No documents found on startup.")
 
     # ---------------- SESSION UTILS ----------------
 
@@ -51,11 +68,15 @@ def create_app():
 
     def load_session(session_id):
         path = os.path.join(app.config["SESSION_FOLDER"], f"{session_id}.json")
+        print("SESSION PATH:", path)
+        print("EXISTS:", os.path.exists(path))
         if not os.path.exists(path):
             return None
 
         with open(path, "r") as f:
             return json.load(f)
+        
+        
 
     def save_session(session_id, data):
         path = os.path.join(app.config["SESSION_FOLDER"], f"{session_id}.json")
@@ -160,6 +181,9 @@ def create_app():
         if session_data is None:
             return jsonify({"error": "Session not found"}), 404
 
+
+        session_history = session_data.get("history", [])
+
         result = rag_pipeline.run(user_query)
 
         # Ensure history exists
@@ -186,6 +210,14 @@ def create_app():
         return jsonify(result)
 
     # ---------------- SESSION ROUTES ----------------
+
+    @app.route("/load_session/<session_id>", methods=["GET"])
+    def load_existing_session(session_id):
+        session_data = load_session(session_id)
+        if session_data is None:
+            return jsonify({"error": "Session not found"}), 404
+
+        return jsonify(session_data)
 
     @app.route("/new_session", methods=["POST"])
     def new_session():

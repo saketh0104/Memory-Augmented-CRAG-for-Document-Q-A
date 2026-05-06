@@ -7,113 +7,117 @@ class RAGGenerator:
 
     def generate_answer(self, query, retrieved_chunks, intent, episodic_memory=None):
 
-        # ---------- Build Retrieval Context ----------
+        # ---------- Retrieval Context ----------
         context = "\n\n".join(
             f"[{c['source_file']} | chunk {c['chunk_id']}]\n{c['text']}"
             for c in retrieved_chunks
         )
 
-        # ---------- Episodic Memory ----------
+        # ---------- Smart Episodic Memory ----------
         memory_context = ""
         if episodic_memory:
-            for mem in episodic_memory:
+            # take only last 2–3 relevant interactions
+            recent_memory = episodic_memory[-3:]
+
+            for mem in recent_memory:
                 if isinstance(mem, dict):
                     memory_context += (
-                        f"Previous Question: {mem.get('query','')}\n"
-                        f"Previous Answer: {mem.get('answer','')}\n\n"
+                        f"User previously asked: {mem.get('query','')}\n"
+                        f"Assistant answered: {mem.get('answer','')}\n\n"
                     )
 
+        # ---------- Intent Routing ----------
         intent = intent.lower().strip()
-        
-        if intent == "fact_lookup":
 
+        if intent == "fact_lookup":
             system_prompt = """
 You are a high-precision enterprise assistant.
 
 Task:
-Answer the question directly using the provided context as evidence.
+Answer the question directly using the provided document evidence.
+
+Memory Usage:
+- Use conversation history ONLY to understand what the user refers to.
+- DO NOT treat memory as factual source.
+
+Evidence Priority:
+- Retrieved context is the ONLY source of truth.
 
 Behavior:
-- Understand the question first.
-- Use context to identify the correct fact.
-- Respond naturally and clearly.
-- Start with the answer immediately.
-- No phrases like:
-  "According to the document"
-  "Based on the context"
-- Preserve numbers, names, dates, percentages exactly.
-- If multiple values exist, choose the most relevant one.
-- Keep concise but readable.
-- Plain text only.
+- Answer immediately.
+- Preserve numbers, names, and values exactly.
+- No phrases like "based on the context".
+- Be concise and precise.
 """
-        elif intent == "procedural":
 
+        elif intent == "procedural":
             system_prompt = """
 You are an enterprise workflow assistant.
 
 Task:
-Explain how something works using the provided context.
+Explain processes using document evidence.
+
+Memory Usage:
+- Use history only to resolve references (e.g., "that process").
+- Do not rely on it for factual correctness.
 
 Behavior:
-- Use the context as reference material.
-- Present the answer in logical numbered steps.
-- Make steps clear, readable, and professional.
-- Improve wording where needed.
-- If context is partial, infer a reasonable structure only from available evidence.
-- No markdown.
-- No bold text.
-- No unnecessary introduction.
+- Provide step-by-step explanation.
+- Improve clarity.
+- Keep structured and professional.
 """
-        elif intent == "global_summary":
 
+        elif intent == "global_summary":
             system_prompt = """
 You are an enterprise summarization assistant.
 
 Task:
-Create a high-quality summary using the context as source material.
+Generate a high-quality summary from document evidence.
+
+Memory Usage:
+- Use conversation context to understand scope.
+- Do not prioritize it over retrieved evidence.
 
 Behavior:
-- Understand the question theme.
-- Merge related evidence across chunks.
-- Write a polished multi-paragraph summary.
-- Cover major points such as business model, operations, strategy, products, governance, financial themes, or risks when relevant.
-- Avoid repeating raw chunk wording.
-- Rewrite into clean human-readable language.
-- Use rich but concise detail.
-- No markdown.
+- Merge information across sources.
+- Write clean, structured summary.
+- Avoid repetition.
 """
 
         else:
-
             system_prompt = """
 You are an enterprise analytical assistant.
 
 Task:
-Answer open-ended business questions using the context as supporting evidence.
+Answer complex questions using document evidence.
+
+Memory Usage:
+- Use memory to understand intent progression.
+- Do not treat memory as ground truth.
 
 Behavior:
-- First understand what the user is really asking.
-- Use all relevant context to form a thoughtful answer.
-- Explain reasons, impacts, comparisons, incentives, risks, relationships, or conclusions when relevant.
-- Do not merely repeat chunk text.
-- Interpret the evidence into a polished readable response.
-- If context is partial, still provide the best supported answer.
-- Be intelligent, grounded, and professional.
-- No markdown.
+- Provide reasoning, insights, and interpretation.
+- Stay grounded in retrieved context.
 """
 
+        # ---------- Final Prompt ----------
         user_prompt = f"""
+Conversation History (for context only):
 {memory_context}
 
-Use the following retrieved context as supporting evidence.
-
-Context:
+Retrieved Evidence:
 {context}
 
-Question:
+Current Question:
 {query}
 
-Generate the best final answer.
+Instructions:
+- Use retrieved evidence as the primary source.
+- Use conversation history only for context understanding.
+- Do not hallucinate.
+- If insufficient evidence, say so clearly.
+
+Provide the best possible answer.
 """
 
         return self.llm.generate(system_prompt, user_prompt).strip()

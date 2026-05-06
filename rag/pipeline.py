@@ -104,9 +104,8 @@ class RAGPipeline:
         return unique
 
     # ---------------- RUN ----------------
-    def run(self, query):
+    def run(self, query: str):
         print("\n--- QUERY ---", query)
-
         intent_cfg = self.intent_router.classify(query)
 
         intent = intent_cfg["intent"].lower()
@@ -120,7 +119,7 @@ class RAGPipeline:
         )
 
         episodic_mem, evidence_mem = self.memory.retrieve_memory_context(query)
-
+        
         retrieved = self.retrieve(query, bm25_w, sem_w, top_k)
 
         # add memory
@@ -129,7 +128,7 @@ class RAGPipeline:
 
         retrieved.extend(evidence_mem)
 
-        # 🔥 FIX: deduplicate
+        #FIX: deduplicate
         retrieved = self._deduplicate(retrieved)
 
         accepted, refine = self.critic.evaluate(query, retrieved)
