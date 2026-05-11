@@ -42,7 +42,7 @@ def chunk_text(
         sent = sentences[i]
         sent_tokens = estimate_tokens(sent)
 
-        # 🚨 Break conditions
+        #Break conditions
         if (
             sim < similarity_threshold or
             current_tokens + sent_tokens > max_tokens

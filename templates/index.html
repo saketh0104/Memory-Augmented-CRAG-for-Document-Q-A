@@ -5,6 +5,13 @@
     <meta charset="UTF-8">
     <title>Console</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/style.css') }}">
+    
+    <!-- MARKDOWN -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- CODE HIGHLIGHT -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </head>
 <body>
 
@@ -29,10 +36,13 @@
             <h4>Documents</h4>
             <ul id="document-list">
                 {% for doc in documents -%}
-                <li>{{ doc }}</li>
+                <li class="document-item">
+                <span class="document-dot"></span>
+                {{ doc }}
+                </li>
                 {%- endfor %}
                 {% if not documents -%}
-                <li>No documents uploaded</li>
+                <li class="empty-state"> No documents uploaded</li>
                 {%- endif %}
             </ul>
         </div>

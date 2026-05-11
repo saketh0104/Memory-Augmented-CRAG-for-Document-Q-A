@@ -163,9 +163,10 @@ def create_app():
             json.dump(metadata, f, indent=2)
 
         return jsonify({
-            "status": "uploaded",
-            "message": "Document indexed successfully"
-        })
+    "status": "uploaded",
+    "filename": file.filename,
+    "chunks": len(chunks)
+    })
 
     # ---------------- QUERY ----------------
 

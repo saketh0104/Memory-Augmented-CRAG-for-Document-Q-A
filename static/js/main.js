@@ -37,56 +37,107 @@ async function loadSession(sessionId) {
 
 /* ---------------- SESSION CLICK ---------------- */
 
-function attachSessionClickHandlers() {
-    document.querySelectorAll(".session-item").forEach(item => {
-        item.onclick = async (e) => {
+/* ---------------- SESSION CLICK ---------------- */
 
-            if (e.target.closest(".session-menu")) return;
+document
+.getElementById("session-list")
+.addEventListener("click", async (e) => {
 
-            const sessionId = item.dataset.session;
-            if (!sessionId) return;
+    const item = e.target.closest(".session-item");
 
-            activeSession = sessionId;
+    if (!item) return;
 
-            document.querySelectorAll(".session-item")
-                .forEach(el => el.classList.remove("active"));
+    // ignore menu clicks
+    if (e.target.closest(".session-menu")) return;
 
-            item.classList.add("active");
+    const sessionId = item.dataset.session;
 
-            await loadSession(sessionId);
-        };
-    });
-}
+    if (!sessionId) return;
+
+    activeSession = sessionId;
+
+    document.querySelectorAll(".session-item")
+        .forEach(el => {
+            el.classList.remove("active");
+        });
+
+    item.classList.add("active");
+
+    await loadSession(sessionId);
+});
 
 /* ---------------- NEW SESSION ---------------- */
 
-document.getElementById("new-chat").addEventListener("click", async () => {
+document.getElementById("new-chat")
+.addEventListener("click", async () => {
 
-    const response = await fetch("/new_session", { method: "POST" });
+    const response = await fetch("/new_session", {
+        method: "POST"
+    });
+
     const data = await response.json();
 
     activeSession = data.session_id;
 
+    localStorage.setItem(
+        "activeSession",
+        activeSession
+    );
+
+    // clear chat
     chatMessages.innerHTML = "";
-    addMessage("New session started.", "bot");
 
-    // add to sidebar dynamically
-    const sessionList = document.querySelector(".session-list");
+    addMessage(
+        "New session started.",
+        "bot"
+    );
 
-    const li = document.createElement("li");
-    li.className = "session-item active";
-    li.dataset.session = activeSession;
-    li.innerHTML = `<span>New Chat</span>`;
-
-    // remove old active
+    // remove previous active states
     document.querySelectorAll(".session-item")
         .forEach(el => el.classList.remove("active"));
 
-    sessionList.prepend(li);
+    // create sidebar item
+    const li = document.createElement("li");
 
+    li.className = "session-item active";
+
+    li.dataset.session = activeSession;
+
+    li.innerHTML = `
+        <span class="session-title">
+            New Chat
+        </span>
+
+        <div class="session-menu">
+
+            <button class="menu-btn">
+                ⋮
+            </button>
+
+            <div class="dropdown">
+
+                <button class="rename-session">
+                    Rename
+                </button>
+
+                <button class="pin-session">
+                    Pin
+                </button>
+
+                <button class="delete-session">
+                    Delete
+                </button>
+
+            </div>
+        </div>
+    `;
+
+    document
+        .getElementById("session-list")
+        .prepend(li);
+
+    // IMPORTANT
     attachSessionClickHandlers();
-
-    localStorage.setItem("activeSession", activeSession);
 });
 
 /* ---------------- QUERY ---------------- */
@@ -155,21 +206,36 @@ function addMessage(content, type) {
 }
 
 function renderBotMessage(answer, citations) {
+
     const botMsg = document.createElement("div");
+
     botMsg.className = "message bot";
 
     const answerDiv = document.createElement("div");
+
     answerDiv.className = "answer-text";
-    answerDiv.textContent = answer;
+
+    // MARKDOWN RENDERING
+    answerDiv.innerHTML = marked.parse(answer);
+
+    // CODE HIGHLIGHTING
+    answerDiv.querySelectorAll("pre code")
+        .forEach((block) => {
+            hljs.highlightElement(block);
+        });
 
     botMsg.appendChild(answerDiv);
 
     if (citations && citations.length > 0) {
-        botMsg.appendChild(renderCitations(citations));
+        botMsg.appendChild(
+            renderCitations(citations)
+        );
     }
 
     chatMessages.appendChild(botMsg);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    chatMessages.scrollTop =
+        chatMessages.scrollHeight;
 }
 
 function renderCitations(citations) {
@@ -191,6 +257,62 @@ function renderCitations(citations) {
     wrapper.appendChild(ul);
     return wrapper;
 }
+
+
+
+function addDocumentToSidebar(filename) {
+
+    const list = document.getElementById("document-list");
+
+    // remove placeholder
+    if (list.children.length === 1 &&
+        list.children[0].textContent.includes("No documents")) {
+
+        list.innerHTML = "";
+    }
+
+    // prevent duplicates
+    const exists = [...list.children]
+        .some(li => li.textContent === filename);
+
+    if (exists) return;
+
+    const li = document.createElement("li");
+
+    li.className = "document-item";
+
+    li.innerHTML = `
+        <span class="document-dot"></span>
+        ${filename}
+    `;
+
+    list.prepend(li);
+}
+
+
+function showToast(message, type="info") {
+
+    const toast = document.createElement("div");
+
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add("show");
+    }, 100);
+
+    setTimeout(() => {
+        toast.classList.remove("show");
+
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+
+    }, 3000);
+}
+
 
 /* ---------------- DELETE / RENAME ---------------- */
 
@@ -231,51 +353,115 @@ document.addEventListener("click", function (e) {
     }
 });
 
-/* ---------------- UPLOAD (NO RELOAD) ---------------- */
+document.addEventListener("click", (e) => {
 
-document.getElementById("upload-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
+    // open menu
+    if (e.target.classList.contains("menu-btn")) {
 
-    const formData = new FormData(e.target);
+        e.stopPropagation();
 
-    const response = await fetch("/upload", {
-        method: "POST",
-        body: formData
-    });
+        const dropdown =
+            e.target.nextElementSibling;
 
-    const data = await response.json();
+        // close others
+        document.querySelectorAll(".dropdown")
+            .forEach(d => {
+                if (d !== dropdown) {
+                    d.style.display = "none";
+                }
+            });
 
-    console.log("[UPLOAD]", data);
+        dropdown.style.display =
+            dropdown.style.display === "flex"
+                ? "none"
+                : "flex";
 
-    addMessage("Document uploaded and indexed.", "bot");
+        return;
+    }
+
+    // close all menus
+    document.querySelectorAll(".dropdown")
+        .forEach(d => d.style.display = "none");
 });
 
-/* ---------------- INIT ---------------- */
+/* ---------------- UPLOAD ---------------- */
+document.getElementById("upload-form")
+?.addEventListener("submit", async (e) => {
 
-window.addEventListener("load", async () => {
+    e.preventDefault();
 
-    const saved = localStorage.getItem("activeSession");
+    const form = e.target;
+    const formData = new FormData(form);
 
-    if (saved) {
-        const res = await fetch(`/load_session/${saved}`);
-        const data = await res.json();
+    const uploadBtn = form.querySelector("button");
 
-        if (!data.error) {
-            activeSession = saved;
-            await loadSession(saved);
+    // ---------------- LOADING STATE ----------------
+
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = "Indexing...";
+    uploadBtn.classList.add("loading");
+
+    showToast("Uploading and indexing document...", "info");
+
+    try {
+
+        const response = await fetch("/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, "error");
             return;
         }
 
-        //session invalid → clear it
-        localStorage.removeItem("activeSession");
+        // ---------------- UPDATE DOCUMENT LIST ----------------
+
+        addDocumentToSidebar(data.filename);
+
+        // ---------------- SUCCESS ----------------
+
+        showToast(
+            `${data.filename} indexed successfully (${data.chunks} chunks)`,
+            "success"
+        );
+
+        // reset form
+        form.reset();
+
+    } catch (err) {
+
+        console.error(err);
+
+        showToast(
+            "Upload failed.",
+            "error"
+        );
+
+    } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "Upload";
+        uploadBtn.classList.remove("loading");
     }
+});
 
-    // fallback → create new session
-    const response = await fetch("/new_session", { method: "POST" });
-    const newSession = await response.json();
+queryInput.addEventListener("input", () => {
 
-    activeSession = newSession.session_id;
-    localStorage.setItem("activeSession", activeSession);
+    queryInput.style.height = "auto";
 
-    addMessage("New session started.", "bot");
+    queryInput.style.height =
+        queryInput.scrollHeight + "px";
+});
+
+
+queryInput.addEventListener("keydown", (e) => {
+
+    if (e.key === "Enter" && !e.shiftKey) {
+
+        e.preventDefault();
+
+        sendBtn.click();
+    }
 });
