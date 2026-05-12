@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>Console</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/style.css') }}">
-    
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <!-- MARKDOWN -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
@@ -62,7 +62,7 @@
                         </div>
                     </div></li>
                 {% else %}
-                <li>No sessions yet</li>
+                <li class="empty-state">No sessions yet</li>
                 {% endfor %}
             </ul>
             <button id="new-chat">+ New Chat</button>

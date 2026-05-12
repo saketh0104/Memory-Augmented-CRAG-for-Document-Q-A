@@ -4,6 +4,11 @@ const queryInput = document.getElementById("query-input");
 
 let activeSession = null;
 
+marked.setOptions({
+    breaks: true,
+    gfm: true
+});
+
 /* ---------------- SESSION LOAD ---------------- */
 
 async function loadSession(sessionId) {
@@ -135,9 +140,6 @@ document.getElementById("new-chat")
     document
         .getElementById("session-list")
         .prepend(li);
-
-    // IMPORTANT
-    attachSessionClickHandlers();
 });
 
 /* ---------------- QUERY ---------------- */
@@ -216,7 +218,8 @@ function renderBotMessage(answer, citations) {
     answerDiv.className = "answer-text";
 
     // MARKDOWN RENDERING
-    answerDiv.innerHTML = marked.parse(answer);
+    const rawHtml = marked.parse(answer);
+    answerDiv.innerHTML = DOMPurify.sanitize(rawHtml);
 
     // CODE HIGHLIGHTING
     answerDiv.querySelectorAll("pre code")
@@ -348,7 +351,7 @@ document.addEventListener("click", function (e) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ title: newName })
         }).then(() => {
-            li.querySelector("span").textContent = newName;
+            li.querySelector(".session-title").textContent = newName;
         });
     }
 });
