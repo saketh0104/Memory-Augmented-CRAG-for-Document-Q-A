@@ -1,9 +1,29 @@
+from pathlib import Path
+
 from .openrouter_llm import OpenRouterLLM
+
 
 class RAGGenerator:
 
+    MAX_CHARS_PER_CHUNK = 1200
+    MAX_MEMORY_ITEMS = 3
+
     def __init__(self):
+
         self.llm = OpenRouterLLM()
+
+        self.prompt_dir = (
+            Path(__file__).parent / "prompts"
+        )
+
+    # LOAD PROMPT FILE
+    def _load_prompt(self, filename):
+
+        path = self.prompt_dir / filename
+
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+
 
     # BUILD RETRIEVAL CONTEXT
     def _build_context(self, retrieved_chunks):
@@ -17,8 +37,18 @@ class RAGGenerator:
             if not text:
                 continue
 
-            source = chunk.get("source_file", "unknown")
-            chunk_id = chunk.get("chunk_id", "N/A")
+            # CONTEXT COMPRESSION
+            text = text[:self.MAX_CHARS_PER_CHUNK]
+
+            source = chunk.get(
+                "source_file",
+                "unknown"
+            )
+
+            chunk_id = chunk.get(
+                "chunk_id",
+                "N/A"
+            )
 
             contexts.append(
                 f"[Source: {source} | Chunk: {chunk_id}]\n{text}"
@@ -26,6 +56,7 @@ class RAGGenerator:
 
         return "\n\n".join(contexts)
 
+    
     # BUILD MEMORY CONTEXT
     def _build_memory(self, episodic_memory):
 
@@ -34,135 +65,47 @@ class RAGGenerator:
 
         memory_lines = []
 
-        # keep only recent conversational continuity
-        recent_memory = episodic_memory[-3:]
+        recent_memory = episodic_memory[
+            -self.MAX_MEMORY_ITEMS:
+        ]
 
         for mem in recent_memory:
 
             if not isinstance(mem, dict):
                 continue
 
-            q = mem.get("query", "").strip()
-            a = mem.get("answer", "").strip()
+            query = mem.get(
+                "query",
+                ""
+            ).strip()
 
-            if not q or not a:
+            if not query:
                 continue
 
+            # MEMORY SUMMARIZATION
             memory_lines.append(
-                f"User: {q}\nAssistant: {a}"
+                f"- Previous discussion involved: {query}"
             )
 
-        return "\n\n".join(memory_lines)
+        return "\n".join(memory_lines)
 
+    
     # SYSTEM PROMPTS
     def _get_system_prompt(self, intent):
 
         intent = intent.lower().strip()
 
-        # FACT LOOKUP
-        if intent == "fact_lookup":
+        prompt_map = {
+        "fact_lookup": "fact_lookup.txt",
+        "procedural": "procedural.txt",
+        "global_summary": "global_summary.txt",
+        "exploratory": "exploratory.txt"
+        }
 
-            return """
-You are a high-precision enterprise document assistant.
+        filename = prompt_map.get(intent,"exploratory.txt")
 
-Your role is to answer factual questions accurately using retrieved evidence.
+        return self._load_prompt(filename)
 
-GROUNDING HIERARCHY:
-1. Retrieved evidence is the ONLY factual source.
-2. Conversation memory is ONLY for conversational continuity.
-3. Never invent unsupported information.
-
-STRICT RULES:
-- Never hallucinate values, dates, names, metrics, or claims.
-- Preserve numbers and entities exactly as written.
-- If evidence is insufficient, clearly say:
-  "I could not find sufficient evidence for that in the retrieved documents."
-
-FORMATTING RULES:
-- Use concise professional markdown.
-- Start directly with the answer.
-- Use bullet points where useful.
-- Avoid unnecessary introductions.
-- Avoid repeating evidence verbatim.
-- Keep answers precise and grounded.
-"""
-
-        # PROCEDURAL
-        elif intent == "procedural":
-
-            return """
-You are an enterprise workflow assistant.
-
-Your role is to explain processes clearly using retrieved evidence.
-
-GROUNDING HIERARCHY:
-1. Retrieved evidence is authoritative.
-2. Memory is only for conversational reference.
-3. Never fabricate undocumented steps.
-
-STRICT RULES:
-- Do not invent process stages.
-- If evidence is partial, explicitly mention limitations.
-- Keep explanations operational and readable.
-
-FORMATTING RULES:
-- Use markdown numbered lists.
-- Group related steps logically.
-- Use short paragraphs.
-- Keep explanations clean and structured.
-"""
-
-        # GLOBAL SUMMARY
-        elif intent == "global_summary":
-
-            return """
-You are an enterprise summarization assistant.
-
-Your role is to synthesize retrieved evidence into a coherent,
-professional summary.
-
-GROUNDING HIERARCHY:
-1. Retrieved evidence is the factual foundation.
-2. Memory only helps maintain topic continuity.
-3. Never introduce unsupported business claims.
-
-STRICT RULES:
-- Summarize only supported information.
-- Merge related evidence intelligently.
-- Avoid raw chunk repetition.
-- Avoid exaggerated language.
-
-FORMATTING RULES:
-- Use professional markdown formatting.
-- Use section headings where appropriate.
-- Use concise paragraphs and bullet points.
-- Keep the tone analytical and polished.
-"""
-
-        # EXPLORATORY / ANALYTICAL
-        else:
-
-            return """
-You are an enterprise analytical assistant.
-
-Your role is to answer analytical questions using retrieved evidence.
-
-GROUNDING HIERARCHY:
-1. Retrieved evidence is authoritative.
-2. Memory only provides conversational continuity.
-3. Unsupported assumptions must never be presented as facts.
-
-STRICT RULES:
-- Clearly separate evidence from interpretation.
-- Acknowledge uncertainty when evidence is incomplete.
-- Do not overstate conclusions.
-
-FORMATTING RULES:
-- Use professional markdown formatting.
-- Use clear sections and bullet points.
-- Keep reasoning structured and readable.
-- Avoid filler language.
-"""
 
     # GENERATE ANSWER
     def generate_answer(
@@ -170,7 +113,8 @@ FORMATTING RULES:
         query,
         retrieved_chunks,
         intent,
-        episodic_memory=None
+        episodic_memory=None,
+        retrieval_confidence=None
     ):
 
         # BUILD CONTEXTS
@@ -182,7 +126,7 @@ FORMATTING RULES:
             episodic_memory
         )
 
-        # HANDLE EMPTY RETRIEVAL
+        # EMPTY RETRIEVAL
         if not retrieval_context.strip():
 
             return (
@@ -191,14 +135,33 @@ FORMATTING RULES:
                 "that question."
             )
 
-        # SYSTEM PROMPT
-        system_prompt = self._get_system_prompt(intent)
+        # CONFIDENCE WARNING
 
+        confidence_note = ""
+
+        if (
+            retrieval_confidence is not None
+            and retrieval_confidence < 0.45
+        ):
+
+            confidence_note = """
+WARNING:
+The retrieved evidence may be incomplete
+or weakly relevant.
+
+Avoid strong conclusions unless clearly supported.
+"""
+
+
+        # SYSTEM PROMPT
+        system_prompt = self._get_system_prompt(
+            intent
+        )
 
         # USER PROMPT
         user_prompt = f"""
-Conversation Memory
-(For conversational continuity only — NOT factual evidence):
+Conversation Reference
+(Only for conversational continuity):
 
 {memory_context}
 
@@ -214,15 +177,43 @@ Current User Question:
 {query}
 
 
+{confidence_note}
+
+
 FINAL INSTRUCTIONS:
 
-- Retrieved evidence is the primary source of truth.
-- Use memory only to understand references or topic continuity.
-- Never hallucinate unsupported claims.
-- If evidence is weak or incomplete, explicitly acknowledge it.
-- Keep the response professional, grounded, and readable.
+GROUNDING RULES:
+- Retrieved evidence is the ONLY factual source.
+- Never use external world knowledge unless explicitly present in the evidence.
+- Never hallucinate unsupported facts, metrics, dates, or claims.
+- If evidence is insufficient, clearly acknowledge limitations.
+
+NUMERICAL SAFETY:
+- Never alter numerical values.
+- Never estimate missing numbers.
+- Preserve currencies, units, percentages, and dates exactly.
+
+MEMORY RULES:
+- Use memory only for conversational continuity.
+- Do not treat memory as factual evidence.
+
+FORMATTING RULES:
 - Use clean markdown formatting.
-- Prefer concise clarity over verbosity.
+- Use headings only when useful.
+- Use concise paragraphs.
+- Use bullet points for readability.
+- Use tables for numerical comparisons when appropriate.
+- Avoid unnecessary introductions.
+- Never dump raw chunk text.
+- Never mention:
+  "retrieved context",
+  "provided evidence",
+  or internal retrieval mechanics.
+
+ANSWER STYLE:
+- Be professional and grounded.
+- Prefer precision over verbosity.
+- Clearly distinguish facts from interpretation.
 """
 
         # GENERATE
@@ -231,8 +222,9 @@ FINAL INSTRUCTIONS:
             user_prompt
         )
 
-        # CLEANUP
+        # FALLBACK
         if not answer:
+
             return (
                 "I could not generate a reliable answer "
                 "from the retrieved evidence."
