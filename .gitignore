@@ -12,3 +12,4 @@ evaluation/sample_chunks/
 evaluation/test/
 evaluation/results/
 models/all-MiniLM-L6-v2/
+models/ms-marco-MiniLM-L-6-v2/

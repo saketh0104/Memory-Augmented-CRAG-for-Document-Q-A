@@ -1,8 +1,7 @@
 import os
 import json
-from os import path
 import uuid
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 
 # ---- Project modules ----
@@ -33,9 +32,6 @@ def create_app():
 
     app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
-    os.makedirs(app.config["SESSION_FOLDER"], exist_ok=True)
-
     # ---------------- INIT CORE ----------------
     vector_db = ChromaStore()
     rag_pipeline = RAGPipeline(vector_db=vector_db, top_k=10)
@@ -43,7 +39,7 @@ def create_app():
     # -------- BUILD BM25 ON STARTUP --------
     documents, metadatas = vector_db.get_all_documents()
     if documents:
-        rag_pipeline.bm25.build_index(documents, metadatas)
+        rag_pipeline.retriever.bm25.build_index(documents, metadatas)
         print(f"[BM25] Loaded {len(documents)} documents on startup.")
     else:
         print("[BM25] No documents found on startup.")
@@ -68,8 +64,7 @@ def create_app():
 
     def load_session(session_id):
         path = os.path.join(app.config["SESSION_FOLDER"], f"{session_id}.json")
-        print("SESSION PATH:", path)
-        print("EXISTS:", os.path.exists(path))
+
         if not os.path.exists(path):
             return None
 
@@ -83,6 +78,14 @@ def create_app():
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
 
+    # ---------------- FILE VALIDATION ----------------
+
+    ALLOWED_EXTENSIONS = {"pdf", "docx", "txt"}
+    
+    def allowed_file(filename):
+        return "." in filename and \
+            filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+    
     # ---------------- ROUTES ----------------
 
     @app.route("/", methods=["GET"])
@@ -96,15 +99,26 @@ def create_app():
                 if f.lower().endswith((".pdf", ".docx", ".txt"))
             ]
 
-        for f in sorted(os.listdir(app.config["SESSION_FOLDER"]), reverse=True):
-            if f.endswith(".json"):
-                sid = f.replace(".json", "")
-                data = load_session(sid)
-                if data:
-                    sessions.append({
-                        "id": sid,
-                        "title": data.get("title", "Untitled")
-                    })
+        session_files = [
+            f for f in os.listdir(app.config["SESSION_FOLDER"]) 
+            if f.endswith(".json")
+        ]
+
+        session_files.sort(
+            key = lambda x: os.path.getmtime(
+                os.path.join(app.config["SESSION_FOLDER"], x)
+            ),
+            reverse=True
+        )
+
+        for f in session_files:
+            sid = f.replace(".json", "")
+            data = load_session(sid)
+            if data:
+                sessions.append({
+                    "id": sid,
+                    "title": data.get("title", "Untitled")
+                })
 
         return render_template(
             "index.html",
@@ -118,55 +132,97 @@ def create_app():
     def upload_file():
 
         if "file" not in request.files:
-            return redirect(url_for("index"))
+            return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files["file"]
 
         if file.filename == "":
-            return redirect(url_for("index"))
+            return jsonify({"error": "No file selected"}), 400
 
-        file_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
-        file.save(file_path)
+        if not allowed_file(file.filename):
+            return jsonify({"error": "Unsupported file type"}), 400
 
-        # -------- INGESTION --------
-        raw_text = load_document(file_path)
-        cleaned_text = clean_text(raw_text)
-
-        chunks = chunk_text(cleaned_text, rag_pipeline.embedder)
-        print("Chunks created:", len(chunks))
-
-        metadata = [
-            extract_metadata(file.filename, i)
-            for i in range(len(chunks))
-        ]
-
-        embeddings = rag_pipeline.embedder.embed_texts(chunks)
-
-        ids = [f"{file.filename}_chunk_{i}" for i in range(len(chunks))]
-
-        vector_db.add_documents(
-            texts=chunks,
-            embeddings=embeddings,
-            metadatas=metadata,
-            ids=ids
+        # safe filesystem name
+        safe_filename = f"{uuid.uuid4()}_{file.filename}"
+        file_path = os.path.join(
+            app.config["UPLOAD_FOLDER"],
+            safe_filename
         )
 
-        #UPDATE BM25 INDEX
-        documents, metadatas = vector_db.get_all_documents()
-        rag_pipeline.bm25.build_index(documents, metadatas)
+        file.save(file_path)
 
-        print("[UPLOAD] Document indexed successfully.")
+        try:
+            # -------- INGESTION --------
+            raw_text = load_document(file_path)
+            cleaned_text = clean_text(raw_text)
 
-        # Save metadata snapshot
-        os.makedirs("data/metadata", exist_ok=True)
-        with open(f"data/metadata/{file.filename}.json", "w") as f:
-            json.dump(metadata, f, indent=2)
+            chunks = chunk_text(
+                cleaned_text,
+                rag_pipeline.embedder
+            )
 
-        return jsonify({
-    "status": "uploaded",
-    "filename": file.filename,
-    "chunks": len(chunks)
-    })
+            print("Chunks created:", len(chunks))
+
+            metadata = [
+                extract_metadata(file.filename, i)
+                for i in range(len(chunks))
+            ]
+
+            embeddings = rag_pipeline.embedder.embed_texts(chunks)
+
+            # FIX: unique vector DB IDs
+            doc_uuid = str(uuid.uuid4())
+
+            ids = [
+                f"{doc_uuid}_chunk_{i}"
+                for i in range(len(chunks))
+            ]
+
+            vector_db.add_documents(
+                texts=chunks,
+                embeddings=embeddings,
+                metadatas=metadata,
+                ids=ids
+            )
+
+            # -------- REBUILD BM25 --------
+            documents, metadatas = vector_db.get_all_documents()
+
+            rag_pipeline.retriever.bm25.build_index(
+                documents,
+                metadatas
+            )
+
+            print("[UPLOAD] Document indexed successfully.")
+
+            # -------- SAVE METADATA --------
+            os.makedirs("data/metadata", exist_ok=True)
+
+            base_name = f"{doc_uuid}_{os.path.splitext(file.filename)[0]}"
+
+            with open(
+                f"data/metadata/{base_name}.json",
+                "w"
+            ) as f:
+                json.dump(metadata, f, indent=2)
+
+            return jsonify({
+                "status": "uploaded",
+                "filename": file.filename,
+                "chunks": len(chunks)
+            })
+
+        except Exception as e:
+
+            # cleanup failed upload file
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+            print("[UPLOAD ERROR]", e)
+
+            return jsonify({
+                "error": f"Upload failed: {str(e)}"
+            }), 500
 
     # ---------------- QUERY ----------------
 
@@ -175,6 +231,9 @@ def create_app():
         session_id = request.form.get("session_id")
         user_query = request.form.get("query")
 
+        if not user_query or not user_query.strip():
+            return jsonify({"error": "Empty query"}), 400
+        
         if not session_id:
             return jsonify({"error": "No session id"}), 400
 
@@ -182,18 +241,20 @@ def create_app():
         if session_data is None:
             return jsonify({"error": "Session not found"}), 404
 
-
-        session_history = session_data.get("history", [])
-
-        result = rag_pipeline.run(user_query)
-
         # Ensure history exists
         if not isinstance(session_data.get("history"), list):
             session_data["history"] = []
 
+        result = rag_pipeline.run(user_query)
+
         # Set title on first query
         if len(session_data["history"]) == 0:
-            session_data["title"] = user_query[:40]
+            title = user_query.strip()
+            session_data["title"] = (
+                title[:37] + "..."
+                if len(title) > 40
+                else title
+            )
 
         session_data["history"].append({
             "role": "user",
