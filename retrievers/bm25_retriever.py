@@ -1,6 +1,7 @@
-from rank_bm25 import BM25Okapi
+import os
 import re
-
+import pickle
+from rank_bm25 import BM25Okapi
 
 class BM25Retriever:
     def __init__(self):
@@ -30,6 +31,37 @@ class BM25Retriever:
         self.bm25 = BM25Okapi(self.tokenized_corpus)
 
         print(f"[BM25] Indexed {len(documents)} documents.")
+        self.save_index()
+
+
+    # ------- SAVE/LOAD INDEX --------
+    def save_index(self, filepath="data/bm25_index.pkl"):
+        os.makedirs("data", exist_ok=True)
+
+        with open(filepath, "wb") as f:
+            pickle.dump({
+                "bm25": self.bm25,
+                "documents": self.documents,
+                "metadatas": self.metadatas
+            }, f)
+
+        print("[BM25] Index saved.")
+
+    def load_index(self, filepath="data/bm25_index.pkl"):
+
+        if not os.path.exists(filepath):
+            return False
+
+        with open(filepath, "rb") as f:
+            data = pickle.load(f)
+
+        self.bm25 = data["bm25"]
+        self.documents = data["documents"]
+        self.metadatas = data["metadatas"]
+
+        print("[BM25] Index loaded from disk.")
+        return True
+    
 
     # -------- SEARCH --------
     def search(self, query, top_k=10):

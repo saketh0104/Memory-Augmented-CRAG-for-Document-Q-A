@@ -83,8 +83,14 @@ class RAGGenerator:
                 continue
 
             # MEMORY SUMMARIZATION
+            short_query = (
+                query[:120] + "..."
+                if len(query) > 120
+                else query
+            )
+
             memory_lines.append(
-                f"- Previous discussion involved: {query}"
+                f"- Prior topic: {short_query}"
             )
 
         return "\n".join(memory_lines)
@@ -96,10 +102,10 @@ class RAGGenerator:
         intent = intent.lower().strip()
 
         prompt_map = {
-        "fact_lookup": "fact_lookup.txt",
-        "procedural": "procedural.txt",
-        "global_summary": "global_summary.txt",
-        "exploratory": "exploratory.txt"
+            "fact_lookup": "fact_lookup.txt",
+            "procedural": "procedural.txt",
+            "global_summary": "global_summary.txt",
+            "exploratory": "exploratory.txt"
         }
 
         filename = prompt_map.get(intent,"exploratory.txt")
@@ -144,13 +150,11 @@ class RAGGenerator:
             and retrieval_confidence < 0.45
         ):
 
-            confidence_note = """
-WARNING:
-The retrieved evidence may be incomplete
-or weakly relevant.
-
-Avoid strong conclusions unless clearly supported.
-"""
+            confidence_note = (
+                "WARNING: The retrieved evidence may be incomplete "
+                "or weakly relevant. Avoid strong conclusions "
+                "unless clearly supported."
+            )
 
 
         # SYSTEM PROMPT
@@ -159,26 +163,16 @@ Avoid strong conclusions unless clearly supported.
         )
 
         # USER PROMPT
-        user_prompt = f"""
-Conversation Reference
-(Only for conversational continuity):
-
+        user_prompt = f"""Conversation Reference (for continuity only):
 {memory_context}
 
-
-Retrieved Evidence
-(Primary factual source):
-
+Retrieved Evidence (primary factual source):
 {retrieval_context}
 
-
 Current User Question:
-
 {query}
 
-
 {confidence_note}
-
 
 FINAL INSTRUCTIONS:
 
@@ -198,22 +192,26 @@ MEMORY RULES:
 - Do not treat memory as factual evidence.
 
 FORMATTING RULES:
-- Use clean markdown formatting.
-- Use headings only when useful.
-- Use concise paragraphs.
-- Use bullet points for readability.
-- Use tables for numerical comparisons when appropriate.
+- Default to natural chat-style answers.
+- Use short paragraphs with minimal spacing.
+- Use bullet points ONLY when listing multiple items.
+- Use headings ONLY for long summaries or complex explanations.
+- Do NOT insert unnecessary blank lines.
+- Do NOT format every answer like a report.
+- Use tables ONLY when numerical comparison genuinely helps.
 - Avoid unnecessary introductions.
 - Never dump raw chunk text.
-- Never mention:
-  "retrieved context",
-  "provided evidence",
-  or internal retrieval mechanics.
 
 ANSWER STYLE:
 - Be professional and grounded.
 - Prefer precision over verbosity.
 - Clearly distinguish facts from interpretation.
+
+RESPONSE SHAPE:
+- For simple factual answers: answer in 1–3 compact paragraphs.
+- For lists: use bullets with tight spacing.
+- For procedural questions: use numbered steps.
+- For summaries: use headings only if truly needed.
 """
 
         # GENERATE

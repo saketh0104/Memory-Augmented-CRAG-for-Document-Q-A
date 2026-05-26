@@ -36,13 +36,14 @@ def create_app():
     vector_db = ChromaStore()
     rag_pipeline = RAGPipeline(vector_db=vector_db, top_k=10)
 
-    # -------- BUILD BM25 ON STARTUP --------
-    documents, metadatas = vector_db.get_all_documents()
-    if documents:
-        rag_pipeline.retriever.bm25.build_index(documents, metadatas)
-        print(f"[BM25] Loaded {len(documents)} documents on startup.")
-    else:
-        print("[BM25] No documents found on startup.")
+    # -------- BUILD/ LOAD BM25 INDEX--------
+    if not rag_pipeline.retriever.bm25.load_index():
+        documents, metadatas = vector_db.get_all_documents()
+        if documents:
+            rag_pipeline.retriever.bm25.build_index(
+            documents,
+            metadatas
+        )
 
     # ---------------- SESSION UTILS ----------------
 
